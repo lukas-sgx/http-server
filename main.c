@@ -31,31 +31,52 @@ int init(){
     return server_fd;
 }
 
-void openFile(const char *path, char *html, size_t buffer_size) {
-    FILE* file = fopen(path, "r");
+char *openFile(const char *path) {
+    FILE *file = fopen(path, "r");
     if (!file) {
-        strcpy(html, "<h1>Erreur: fichier non trouvé</h1>");
-        return;
+        return strdup("<h1>Erreur : fichier introuvable</h1>");
     }
 
-    size_t read_len = fread(html, 1, buffer_size - 1, file);
-    html[read_len] = '\0';
+    size_t size = 0;
+    size_t capacity = 1024;
+    char *html = malloc(capacity);
+    if (!html) {
+        fclose(file);
+        return NULL;
+    }
 
+    size_t bytes;
+    while ((bytes = fread(html + size, 1, capacity - size - 1, file)) > 0) {
+        size += bytes;
+        if (capacity - size <= 1) {
+            capacity *= 2;
+            char *tmp = realloc(html, capacity);
+            if (!tmp) {
+                free(html);
+                fclose(file);
+                return NULL;
+            }
+            html = tmp;
+        }
+    }
+
+    html[size] = '\0';
     fclose(file);
+    return html;
 }
 
 void route(char *path, char *response){
     const char *status;
-    char html[2048];
+    char *html = NULL;
 
     if (strcmp(path, "/") == 0) {
-        openFile("src/index.html", html, sizeof(html));
+        html = openFile("src/index.html");
         status = "200";
     } else if (strcmp(path, "/hello") == 0) {
-        openFile("src/hello.html", html, sizeof(html));
+        html = openFile("src/hello.html");
         status = "200";
     } else {
-        openFile("src/errors/404.html", html, sizeof(html));
+        html = openFile("src/errors/404.html");
         status = "404";
     }
 
@@ -67,6 +88,8 @@ void route(char *path, char *response){
         "\r\n"
         "%s",
         status, strlen(html), html);
+
+    free(html);
 }
 
 int main(int argc, char const *argv[])
